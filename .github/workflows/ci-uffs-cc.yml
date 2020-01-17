@@ -16,13 +16,11 @@ jobs:
     - uses: actions/checkout@v1
 
 ###############################################################################
-    - name: Extract info
+    - name: Extract branch name
 ###############################################################################
-      uses: Dovyski/payload-info-action@v1
+      shell: bash
+      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
       id: info
-      with:
-        filter_push: '.commits[].author'
-        filter_pull_request: '.pull_request.commits'
 
 ###############################################################################
     - name: Prepare deploy server
