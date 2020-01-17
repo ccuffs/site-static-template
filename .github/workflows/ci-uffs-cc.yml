@@ -39,14 +39,16 @@ jobs:
     - name: Compress local content
 ###############################################################################
       shell: bash
-      run: tar -czvf ${{ github.sha }}.tar.gz ${{ github.workspace }}/
+      run: |
+        cd ${{ github.workspace }}/
+        tar -czvf /tmp/${{ github.sha }}.tar.gz .
 
 ###############################################################################
     - name: Deploy site via SSH
 ###############################################################################
       uses: garygrossgarten/github-action-scp@release
       with:
-        local: ${{ github.workspace }}/${{ github.sha }}.tar.gz
+        local: /tmp/${{ github.sha }}.tar.gz
         remote: ${{ env.BUILD_WEB_DIRECTORY }}/${{ steps.info.outputs.branch }}/${{ github.sha }}/
         host: ${{ env.BUILD_HOST }}
         username: ${{ secrets.USERNAME }}
