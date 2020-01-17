@@ -41,7 +41,7 @@ jobs:
       shell: bash
       run: |
         cd ${{ github.workspace }}/
-        tar -czvf /tmp/${{ github.sha }}.tar.gz .
+        tar -czvf /tmp/${{ github.sha }}.tar.gz . --exclude-vcs
 
 ###############################################################################
     - name: Deploy site via SSH
