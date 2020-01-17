@@ -1,0 +1,115 @@
+name: ci.uffs.cc
+on:
+  push:
+    branches:    
+      - master
+      - dev
+env:
+  BUILD_HOST: ci.uffs.cc
+  BUILD_WEB_DIRECTORY: /home/ccuffsci/ci.uffs.cc/site-static-template
+  BUILD_WEB_URL: https://ci.uffs.cc/site-static-template
+jobs:
+  build-deploy-audit:
+    name: Build, deploy and audit
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+
+###############################################################################
+    - name: Checkout and setup nodejs
+###############################################################################
+      uses: actions/setup-node@v1
+      with:
+        node-version: '12.x'
+
+###############################################################################
+    - name: Install dependencies
+###############################################################################
+      run: npm ci
+
+###############################################################################
+    - name: Extract workflow info
+###############################################################################
+      uses: Dovyski/payload-info-action@v1
+      with:
+        filter_push: '.commits[].author'
+        filter_pull_request: '.pull_request.commits'
+      id: info
+
+###############################################################################
+    - name: Prepare deploy server
+###############################################################################
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ env.BUILD_HOST }}
+        username: ${{ secrets.USERNAME }}
+        password: ${{ secrets.PASSWORD }}
+        port: ${{ secrets.PORT }}
+        script: |
+          mkdir -p ${{ env.BUILD_WEB_DIRECTORY }}/${{ steps.info.outputs.branch }}/${{ github.sha }}
+          mkdir -p ${{ env.BUILD_WEB_DIRECTORY }}/${{ steps.info.outputs.branch }}/${{ github.sha }}/_report
+
+###############################################################################
+    - name: Compress local content
+###############################################################################
+      shell: bash
+      run: tar -czvf ${{ github.sha }}.tar.gz ${{ github.workspace }}/
+
+###############################################################################
+    - name: Deploy site via SSH
+###############################################################################
+      uses: garygrossgarten/github-action-scp@release
+      with:
+        local: ${{ github.workspace }}/${{ github.sha }}.tar.gz
+        remote: ${{ env.BUILD_WEB_DIRECTORY }}/${{ steps.info.outputs.branch }}/${{ github.sha }}/
+        host: ${{ env.BUILD_HOST }}
+        username: ${{ secrets.USERNAME }}
+        password: ${{ secrets.PASSWORD }}
+
+###############################################################################
+    - name: Decompress and adjust content
+###############################################################################
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ env.BUILD_HOST }}
+        username: ${{ secrets.USERNAME }}
+        password: ${{ secrets.PASSWORD }}
+        port: ${{ secrets.PORT }}
+        script: |
+          cd ${{ env.BUILD_WEB_DIRECTORY }}/${{ steps.info.outputs.branch }}/${{ github.sha }}/
+          tar -xzvf ${{ github.sha }}.tar.gz -C ./
+          rm -rf ${{ github.sha }}.tar.gz
+
+###############################################################################
+    - name: Audit site performance
+###############################################################################
+      uses: jakejarvis/lighthouse-action@master
+      with:
+        url: ${{ env.BUILD_WEB_URL }}/${{ steps.info.outputs.branch }}/${{ github.sha }}
+
+###############################################################################
+    - name: Upload audit results as an artifact
+###############################################################################
+      uses: actions/upload-artifact@master
+      with:
+        name: report
+        path: './report'
+
+###############################################################################
+    - name: Copy audit report to deploy server via SSH
+###############################################################################
+      uses: garygrossgarten/github-action-scp@release
+      with:
+        local: ${{ github.workspace }}/report
+        remote: ${{ env.BUILD_WEB_DIRECTORY }}/${{ steps.info.outputs.branch }}/${{ github.sha }}/_report/
+        host: ${{ env.BUILD_HOST }}
+        username: ${{ secrets.USERNAME }}
+        password: ${{ secrets.PASSWORD }}
+
+###############################################################################
+    - name: Summary
+###############################################################################
+      run: |
+        echo "Summary:"
+        echo " Live URL: ${{ env.BUILD_WEB_URL }}/${{ steps.info.outputs.branch }}/${{ github.sha }}"
+        echo " Audit report URL: ${{ env.BUILD_WEB_URL }}/${{ steps.info.outputs.branch }}/${{ github.sha }}/_report"
