@@ -36,12 +36,13 @@ jobs:
           mkdir -p ${{ env.BUILD_WEB_DIRECTORY }}/${{ steps.info.outputs.branch }}/${{ github.sha }}/_report
 
 ###############################################################################
-    - name: Compress local content
+    - name: Prepare local content
 ###############################################################################
       shell: bash
       run: |
         cd ${{ github.workspace }}/
-        tar -czvf /tmp/${{ github.sha }}.tar.gz . --exclude-vcs
+        rm -rf .git/
+        tar -czvf /tmp/${{ github.sha }}.tar.gz .
 
 ###############################################################################
     - name: Deploy site via SSH
@@ -49,7 +50,7 @@ jobs:
       uses: garygrossgarten/github-action-scp@release
       with:
         local: /tmp/${{ github.sha }}.tar.gz
-        remote: ${{ env.BUILD_WEB_DIRECTORY }}/${{ steps.info.outputs.branch }}/${{ github.sha }}/
+        remote: ${{ env.BUILD_WEB_DIRECTORY }}/${{ steps.info.outputs.branch }}/${{ github.sha }}/content.tar.gz
         host: ${{ env.BUILD_HOST }}
         username: ${{ secrets.USERNAME }}
         password: ${{ secrets.PASSWORD }}
@@ -65,8 +66,8 @@ jobs:
         port: ${{ secrets.PORT }}
         script: |
           cd ${{ env.BUILD_WEB_DIRECTORY }}/${{ steps.info.outputs.branch }}/${{ github.sha }}/
-          tar -xzvf ${{ github.sha }}.tar.gz -C ./
-          rm -rf ${{ github.sha }}.tar.gz
+          tar -xzvf content.tar.gz -C ./
+          rm -rf content.tar.gz
 
 ###############################################################################
     - name: Audit site performance
